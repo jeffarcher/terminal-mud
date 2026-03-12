@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TERMINAL // MUD</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="screen">
+
+  <div id="header">
+    <span class="title">◈ TERMINAL v0.2</span>
+    <span class="meta" id="header-meta">TYPE <kbd style="color:var(--amber)">HELP</kbd> FOR COMMANDS</span>
+  </div>
+
+  <div id="hud">
+    <div class="hud-row" id="hud-row"></div>
+  </div>
+
+  <div id="output" tabindex="0"></div>
+
+  <div id="input-row">
+    <span id="prompt">ENTER COMMAND &gt;</span>
+    <div id="input-wrapper">
+      <span id="input-mirror" style="
+        position: absolute;
+        visibility: hidden;
+        white-space: pre;
+        font-family: 'Share Tech Mono', monospace;
+        font-size: 17px;
+        pointer-events: none;
+      "></span>
+      <input type="text" id="input"
+        autocomplete="off" autocorrect="off"
+        spellcheck="false" autofocus placeholder="...">
+      <span id="block-cursor"></span>
+    </div>
+  </div>
+
+  <div id="status-bar">
+    <span id="loc-display">LOCATION: THE ENTRANCE</span>
+    <span id="inv-display">INVENTORY: EMPTY</span>
+  </div>
+
+</div>
+
+<!--
+  Script load order matters — each file depends on the ones above it:
+  1. world.js     — data (WEAPONS, items, ENEMY_DEFS, world rooms)
+  2. engine.js    — state, output helpers, HUD, dice
+  3. character.js — classes, chargen, XP, leveling
+  4. combat.js    — status effects, combat loop
+  5. commands.js  — all player commands
+  6. main.js      — parser, input, boot sequence
+-->
+<script src="js/world.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/character.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/commands.js"></script>
+<script src="js/main.js"></script>
+
+</body>
+</html>

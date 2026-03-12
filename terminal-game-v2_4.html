@@ -1,0 +1,1678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TERMINAL // Personal Site</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap');
+
+  :root {
+    --amber: #ffb000;
+    --amber-dim: #7a5200;
+    --amber-faint: #2a1c00;
+    --bg: #0a0700;
+    --scanline: rgba(0,0,0,0.25);
+    --cyan: #00e5ff;
+    --cyan-dim: #007a88;
+    --magenta: #ff2d78;
+    --green: #aaff88;
+    --red: #ff4444;
+    --purple: #b060ff;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--amber);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 15px;
+    line-height: 1.6;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      var(--scanline) 2px, var(--scanline) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.75) 100%);
+    pointer-events: none;
+    z-index: 99;
+  }
+
+  #screen {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem 2.5rem 1rem;
+    position: relative;
+  }
+
+  #header {
+    border-bottom: 1px solid var(--amber-dim);
+    padding-bottom: 0.6rem;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    opacity: 0;
+    animation: fadein 0.5s ease 0.2s forwards;
+  }
+
+  #header .title {
+    font-family: 'VT323', monospace;
+    font-size: 1.6rem;
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 10px var(--amber);
+  }
+
+  #header .meta {
+    font-size: 0.72rem;
+    color: var(--amber-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* RPG HUD — hidden until character exists */
+  #hud {
+    display: none;
+    border: 1px solid var(--cyan-dim);
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.72rem;
+    color: var(--cyan);
+    letter-spacing: 0.05em;
+    background: rgba(0, 229, 255, 0.03);
+    opacity: 0;
+    animation: fadein 0.4s ease forwards;
+  }
+
+  #hud.visible { display: block; }
+
+  .hud-row {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .hud-stat { white-space: nowrap; }
+  .hud-label { color: var(--cyan-dim); }
+  .hud-val { color: var(--cyan); }
+  .hud-hp-low { color: var(--red) !important; animation: pulse 1s ease infinite; }
+  .hud-status-fx { color: var(--magenta); }
+
+  #output {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+    margin-bottom: 0.75rem;
+    scroll-behavior: smooth;
+  }
+
+  #output::-webkit-scrollbar { width: 4px; }
+  #output::-webkit-scrollbar-track { background: var(--amber-faint); }
+  #output::-webkit-scrollbar-thumb { background: var(--amber-dim); }
+
+  .line {
+    margin-bottom: 0.1rem;
+    opacity: 0;
+    animation: fadein 0.2s ease forwards;
+  }
+
+  .line.gap { margin-bottom: 0.7rem; }
+  .line.system { color: var(--amber-dim); font-size: 0.85em; }
+  .line.title-text {
+    font-family: 'VT323', monospace;
+    font-size: 1.3rem;
+    color: var(--amber);
+    text-shadow: 0 0 8px var(--amber);
+  }
+  .line.cyber-title {
+    font-family: 'VT323', monospace;
+    font-size: 1.3rem;
+    color: var(--cyan);
+    text-shadow: 0 0 12px var(--cyan);
+  }
+  .line.error { color: var(--red); }
+  .line.success { color: var(--green); }
+  .line.dim { color: #c07a00; }
+  .line.input-echo { color: var(--amber); opacity: 0; animation: fadein 0.1s ease forwards; }
+  .line.input-echo::before { content: '> '; color: var(--amber-dim); }
+  .line.combat { color: var(--cyan); }
+  .line.combat-dmg { color: var(--magenta); }
+  .line.combat-enemy { color: var(--red); }
+  .line.combat-heal { color: var(--green); }
+  .line.combat-status { color: var(--purple); }
+  .line.loot { color: #ffd700; }
+  .line.levelup {
+    color: #ffd700;
+    font-family: 'VT323', monospace;
+    font-size: 1.2rem;
+    text-shadow: 0 0 10px #ffd700;
+  }
+  .line.chargen { color: var(--cyan); }
+  .line.chargen-opt { color: var(--amber); }
+
+  #input-row {
+    display: flex;
+    align-items: center;
+    border-top: 2px solid var(--amber);
+    border-bottom: 2px solid var(--amber);
+    padding: 0.9rem 1rem;
+    gap: 0.5rem;
+    opacity: 0;
+    animation: fadein 0.5s ease 0.4s forwards;
+    background: rgba(255, 176, 0, 0.08);
+    box-shadow: 0 0 30px rgba(255, 176, 0, 0.18), inset 0 0 30px rgba(255, 176, 0, 0.06);
+  }
+
+  #prompt {
+    color: var(--amber);
+    white-space: nowrap;
+    user-select: none;
+    letter-spacing: 0.1em;
+    text-shadow: 0 0 12px var(--amber), 0 0 4px var(--amber);
+    font-family: 'VT323', monospace;
+    font-size: 1.3rem;
+  }
+
+  #input-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  #input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--amber);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 17px;
+    caret-color: transparent;
+    text-shadow: 0 0 6px var(--amber);
+    width: 100%;
+    min-width: 0;
+  }
+
+  #input:focus { text-shadow: 0 0 8px var(--amber), 0 0 2px #fff8; }
+
+  #block-cursor {
+    display: inline-block;
+    width: 10px;
+    height: 1.05em;
+    background: var(--amber);
+    box-shadow: 0 0 8px var(--amber);
+    animation: blink 1s step-end infinite;
+    vertical-align: middle;
+    flex-shrink: 0;
+    margin-left: 1px;
+  }
+
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+  #status-bar {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 0.35rem;
+    font-size: 0.7rem;
+    color: var(--amber-dim);
+    letter-spacing: 0.07em;
+    border-top: 1px solid #1a1000;
+    margin-top: 0.35rem;
+  }
+
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  @keyframes glitch {
+    0%,100% { text-shadow: 0 0 8px var(--cyan); transform: none; }
+    20% { text-shadow: -2px 0 var(--magenta), 2px 0 var(--cyan); transform: translate(-1px,0); }
+    40% { text-shadow: 2px 0 var(--magenta), -2px 0 var(--cyan); transform: translate(1px,0); }
+  }
+
+  .glitch-text { animation: glitch 0.3s ease; }
+</style>
+</head>
+<body>
+<div id="screen">
+  <div id="header">
+    <span class="title">◈ TERMINAL v0.2</span>
+    <span class="meta" id="header-meta">TYPE <kbd style="color:var(--amber)">HELP</kbd> FOR COMMANDS</span>
+  </div>
+
+  <div id="hud">
+    <div class="hud-row" id="hud-row"></div>
+  </div>
+
+  <div id="output"></div>
+
+  <div id="input-row">
+    <span id="prompt">ENTER COMMAND &gt;&nbsp;</span>
+    <div id="input-wrapper">
+      <span id="input-mirror" style="
+        position:absolute; visibility:hidden; white-space:pre;
+        font-family:'Share Tech Mono',monospace; font-size:17px;
+        pointer-events:none;
+      "></span>
+      <input type="text" id="input" autocomplete="off" autocorrect="off" spellcheck="false" autofocus placeholder="...">
+      <span id="block-cursor"></span>
+    </div>
+  </div>
+
+  <div id="status-bar">
+    <span id="loc-display">LOCATION: THE ENTRANCE</span>
+    <span id="inv-display">INVENTORY: EMPTY</span>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+// GAME STATE
+// ═══════════════════════════════════════════════════════════════
+
+const state = {
+  location: 'entrance',
+  inventory: [],
+  flags: {
+    portalActivated: false,
+    characterCreated: false,
+    enteredCyberspace: false,
+  },
+  moves: 0,
+  // RPG
+  character: null,
+  combat: null,  // active combat session
+  chargenStep: null, // character creation flow
+};
+
+// ═══════════════════════════════════════════════════════════════
+// CHARACTER SYSTEM
+// ═══════════════════════════════════════════════════════════════
+
+const CLASSES = {
+  netrunner: {
+    label: 'NETRUNNER',
+    desc: 'High INT hacker. Excels at system intrusion and disabling enemies remotely.',
+    base: { str: 2, agi: 3, int: 6, end: 3 },
+    color: 'cyan',
+  },
+  street_samurai: {
+    label: 'STREET SAMURAI',
+    desc: 'High STR/AGI warrior. Deals heavy physical damage and dodges with precision.',
+    base: { str: 6, agi: 4, int: 2, end: 4 },
+    color: 'amber',
+  },
+  ghost: {
+    label: 'GHOST',
+    desc: 'High AGI infiltrator. Vanishes in combat, strikes from the shadows.',
+    base: { str: 3, agi: 6, int: 4, end: 2 },
+    color: 'purple',
+  },
+  fixer: {
+    label: 'FIXER',
+    desc: 'Balanced operative. Decent at everything, masters of improvisation.',
+    base: { str: 4, agi: 4, int: 4, end: 4 },
+    color: 'green',
+  },
+};
+
+function createCharacter(name, cls) {
+  const base = CLASSES[cls].base;
+  const maxHp = 20 + base.end * 5;
+  return {
+    name,
+    cls,
+    level: 1,
+    xp: 0,
+    xpNext: 100,
+    statPoints: 0,
+    hp: maxHp,
+    maxHp,
+    stats: { ...base },
+    statusEffects: [],
+    equippedWeapon: null,
+    kills: 0,
+    // Skills unlocked by stat thresholds
+    get skills() { return getSkills(this.stats, this.cls); },
+  };
+}
+
+function getSkills(stats, cls) {
+  const skills = ['ATTACK', 'RUN'];
+  if (stats.agi >= 4) skills.push('DODGE');
+  if (stats.int >= 4) skills.push('HACK');
+  if (stats.str >= 5) skills.push('CRUSH');
+  if (stats.agi >= 6) skills.push('VANISH');
+  if (stats.int >= 6) skills.push('OVERLOAD');
+  if (stats.end >= 5) skills.push('FORTIFY');
+  if (cls === 'netrunner' && stats.int >= 3) skills.push('SCAN');
+  if (cls === 'ghost' && stats.agi >= 3) skills.push('BACKSTAB');
+  if (cls === 'street_samurai' && stats.str >= 4) skills.push('CLEAVE');
+  return [...new Set(skills)];
+}
+
+function xpToLevel(level) { return Math.floor(100 * Math.pow(1.5, level - 1)); }
+
+function grantXP(amount) {
+  const ch = state.character;
+  ch.xp += amount;
+  print(`+${amount} XP`, 'success');
+  while (ch.xp >= ch.xpNext) {
+    ch.xp -= ch.xpNext;
+    ch.level++;
+    ch.xpNext = xpToLevel(ch.level);
+    ch.statPoints += 3;
+    ch.maxHp += 5 + ch.stats.end;
+    ch.hp = Math.min(ch.hp + 10, ch.maxHp);
+    gap();
+    print('▲ LEVEL UP! ▲', 'levelup');
+    print(`You are now level ${ch.level}. +3 stat points available.`, 'levelup');
+    print('Type STATS to view and ALLOCATE [stat] to spend points.', 'dim');
+    gap();
+  }
+  updateHUD();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WEAPONS
+// ═══════════════════════════════════════════════════════════════
+
+const WEAPONS = {
+  rusty_pipe: { name: 'rusty pipe', dmgMin: 3, dmgMax: 7, stat: 'str', req: 0, desc: 'A length of corroded steel pipe. Heavy and brutal.', type: 'melee' },
+  mono_blade: { name: 'monoblade', dmgMin: 6, dmgMax: 14, stat: 'str', req: 4, desc: 'Monomolecular edge. Slices through armor like silk.', type: 'melee' },
+  neural_spike: { name: 'neural spike', dmgMin: 5, dmgMax: 12, stat: 'int', req: 4, desc: 'Fires a disruptive signal directly into enemy wetware.', type: 'hack', statusInflict: 'HACKED' },
+  flechette_gun: { name: 'flechette pistol', dmgMin: 4, dmgMax: 10, stat: 'agi', req: 3, desc: 'Rapid-fire micro-dart weapon. Accurate and fast.', type: 'ranged', statusInflict: 'BLEEDING' },
+  plasma_cutter: { name: 'plasma cutter', dmgMin: 8, dmgMax: 18, stat: 'str', req: 5, desc: 'Industrial cutting tool repurposed for violence.', type: 'melee', statusInflict: 'BURNING' },
+  ice_breaker: { name: 'ICE breaker', dmgMin: 10, dmgMax: 20, stat: 'int', req: 6, desc: 'Military-grade intrusion tool. Melts enemy systems.', type: 'hack', statusInflict: 'STUNNED' },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// STATUS EFFECTS
+// ═══════════════════════════════════════════════════════════════
+
+const STATUS = {
+  BLEEDING:  { label: 'BLEEDING',  duration: 3, onTurn: (target) => { const d = 3; target.hp -= d; return `${target.name} bleeds for ${d} damage.`; }, color: 'combat-dmg' },
+  BURNING:   { label: 'BURNING',   duration: 3, onTurn: (target) => { const d = roll(2,4); target.hp -= d; return `${target.name} burns for ${d} damage.`; }, color: 'combat-dmg' },
+  STUNNED:   { label: 'STUNNED',   duration: 1, onTurn: (target) => { target._skipTurn = true; return `${target.name} is stunned and cannot act.`; }, color: 'combat-status' },
+  HACKED:    { label: 'HACKED',    duration: 2, onTurn: (target) => { target._dmgMult = 1.3; return `${target.name}'s systems are compromised (+30% damage taken).`; }, color: 'combat-status' },
+  SLOWED:    { label: 'SLOWED',    duration: 2, onTurn: (target) => { target._spdPenalty = true; return `${target.name} moves sluggishly.`; }, color: 'combat-status' },
+  BLINDED:   { label: 'BLINDED',   duration: 2, onTurn: (target) => { target._missChance = 0.4; return `${target.name} is blinded — reduced accuracy.`; }, color: 'combat-status' },
+  FORTIFIED: { label: 'FORTIFIED', duration: 3, onTurn: (target) => { target._dmgReduction = 3; return `${target.name} is fortified — absorbing 3 damage.`; }, color: 'combat-heal' },
+  VANISHED:  { label: 'VANISHED',  duration: 1, onTurn: (target) => { target._evadeAll = true; return `${target.name} is hidden in shadows.`; }, color: 'combat-status' },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// ENEMIES
+// ═══════════════════════════════════════════════════════════════
+
+const ENEMY_DEFS = {
+  sec_drone: {
+    name: 'Security Drone', hp: 18, maxHp: 18,
+    atk: [4, 9], xp: 25, loot: null,
+    statusChance: 0.25, statusInflict: 'BLINDED',
+    desc: 'A hovering surveillance drone repurposed for enforcement. Red laser sight tracks your movement.',
+    behavior: 'aggressive',
+  },
+  corp_guard: {
+    name: 'Corp Guard', hp: 30, maxHp: 30,
+    atk: [5, 12], xp: 40, loot: 'rusty_pipe',
+    statusChance: 0.2, statusInflict: 'SLOWED',
+    desc: 'Augmented corporate security in full body armor. Loyal to the corp, not to reason.',
+    behavior: 'aggressive',
+  },
+  ice_spider: {
+    name: 'ICE Spider', hp: 22, maxHp: 22,
+    atk: [3, 8], xp: 30, loot: null,
+    statusChance: 0.4, statusInflict: 'HACKED',
+    desc: 'An intrusion countermeasure construct. It moves like static and thinks in binary.',
+    behavior: 'hacker',
+  },
+  street_gang: {
+    name: 'Gang Member', hp: 25, maxHp: 25,
+    atk: [6, 11], xp: 35, loot: 'flechette_gun',
+    statusChance: 0.3, statusInflict: 'BLEEDING',
+    desc: 'Wired on cheap stims, eyes glowing faint red. Looking for an excuse.',
+    behavior: 'aggressive',
+  },
+  black_market_enforcer: {
+    name: 'Black Market Enforcer', hp: 45, maxHp: 45,
+    atk: [8, 16], xp: 70, loot: 'mono_blade',
+    statusChance: 0.35, statusInflict: 'STUNNED',
+    desc: 'A towering figure in a long coat. Cybernetic arms built for breaking things. Including you.',
+    behavior: 'aggressive',
+  },
+  rogue_ai: {
+    name: 'Rogue AI Fragment', hp: 35, maxHp: 35,
+    atk: [7, 14], xp: 60, loot: 'neural_spike',
+    statusChance: 0.5, statusInflict: 'STUNNED',
+    desc: 'A shard of a broken AI rattling around in the server grid. Dangerous and desperate.',
+    behavior: 'hacker',
+  },
+  apex_hunter: {
+    name: 'APEX-7 Hunter', hp: 60, maxHp: 60,
+    atk: [10, 20], xp: 100, loot: 'ice_breaker',
+    statusChance: 0.4, statusInflict: 'BURNING',
+    desc: 'Military-grade combat construct. It knows your name. It has been sent specifically for you.',
+    behavior: 'boss',
+  },
+};
+
+function spawnEnemy(defKey) {
+  const def = ENEMY_DEFS[defKey];
+  return {
+    ...JSON.parse(JSON.stringify(def)),
+    defKey,
+    statusEffects: [],
+    _skipTurn: false,
+    _dmgMult: 1,
+    _dmgReduction: 0,
+    _missChance: 0,
+    _evadeAll: false,
+    _spdPenalty: false,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WORLD — ORIGINAL ROOMS
+// ═══════════════════════════════════════════════════════════════
+
+const world = {
+  entrance: {
+    name: 'THE ENTRANCE',
+    description: [
+      'You stand before a terminal. The amber glow of the screen',
+      'illuminates your face in the dark.',
+      '',
+      'A blinking cursor awaits your command.',
+      'To the NORTH, a faint hum suggests a room full of ideas.',
+      'To the EAST, you see what looks like an archive.',
+      'To the WEST, there is a door you have never noticed before.',
+      'A faint electric hum leaks through its edges.',
+    ],
+    exits: { north: 'lab', east: 'archive', west: 'gateway' },
+    items: ['note'],
+    enemies: [],
+  },
+  lab: {
+    name: 'THE LAB',
+    description: [
+      "You're in a cluttered workspace. Half-finished projects",
+      'litter every surface. Code scrolls across a secondary monitor.',
+      '',
+      'This is where things get built.',
+      '',
+      'To the SOUTH lies the entrance. To the WEST, a quieter room.',
+    ],
+    exits: { south: 'entrance', west: 'garden' },
+    items: ['blueprint'],
+    enemies: [],
+  },
+  archive: {
+    name: 'THE ARCHIVE',
+    description: [
+      'Shelves stretch upward into darkness, lined with folders,',
+      'hard drives, and yellowing printouts.',
+      '',
+      'Everything ever made is here, waiting.',
+      '',
+      'To the WEST is the entrance.',
+    ],
+    exits: { west: 'entrance' },
+    items: ['old_photo'],
+    enemies: [],
+  },
+  garden: {
+    name: 'THE GARDEN',
+    description: [
+      'An unexpected room. No screens here — just a small desk',
+      'with a journal, a window that shows nothing but static,',
+      'and the distant sound of rain.',
+      '',
+      'To the EAST is the lab.',
+    ],
+    exits: { east: 'lab' },
+    items: ['journal'],
+    enemies: [],
+  },
+
+  // ── GATEWAY ─────────────────────────────────────────────────
+  gateway: {
+    name: 'THE GATEWAY',
+    description: [
+      'The room is barely a room — just a concrete floor and',
+      'a wall dominated by a massive server rack.',
+      '',
+      'In the center of the rack, a single terminal pulses',
+      'with a cold cyan light. A cable runs into the floor',
+      'and disappears.',
+      '',
+      'This is a threshold. You can feel it.',
+      '',
+      'To the EAST is the entrance.',
+    ],
+    exits: { east: 'entrance' },
+    items: ['access_terminal'],
+    enemies: [],
+  },
+
+  // ── CYBERSPACE ROOMS ────────────────────────────────────────
+  neon_alley: {
+    name: 'NEON ALLEY',
+    cyber: true,
+    description: [
+      'You materialize in a rain-slicked alley. Holographic',
+      'advertisements bleed color into standing water.',
+      'Everything smells like ozone and burned circuitry.',
+      '',
+      'A WANTED: DEAD OR ALIVE sign flickers with your face on it.',
+      'Someone knows you are here.',
+      '',
+      'NORTH: The Black Market.  EAST: The Sprawl.',
+      'SOUTH: The Grid Terminal.',
+    ],
+    exits: { north: 'black_market', east: 'the_sprawl', south: 'grid_terminal' },
+    items: ['scrap_weapon'],
+    enemies: ['street_gang'],
+    enemyRespawn: true,
+  },
+  black_market: {
+    name: 'THE BLACK MARKET',
+    cyber: true,
+    description: [
+      'A labyrinth of stalls selling things that should not exist.',
+      'Wetware, unlicensed implants, pre-collapse data cores.',
+      'A vendor eyes you from behind mirrored goggles.',
+      '',
+      'The air is thick with the smell of solder and secrets.',
+      '',
+      'SOUTH: Neon Alley.  EAST: Corporate Plaza.',
+    ],
+    exits: { south: 'neon_alley', east: 'corp_plaza' },
+    items: ['stim_pack', 'data_chip'],
+    enemies: ['black_market_enforcer'],
+    enemyRespawn: false,
+  },
+  the_sprawl: {
+    name: 'THE SPRAWL',
+    cyber: true,
+    description: [
+      'Endless towers of stacked housing units lean over narrow',
+      'streets. Faces peer from behind broken screens.',
+      'The city is alive here — barely.',
+      '',
+      'WEST: Neon Alley.  NORTH: Corporate Plaza.  EAST: The Undernet.',
+    ],
+    exits: { west: 'neon_alley', north: 'corp_plaza', east: 'undernet' },
+    items: [],
+    enemies: ['corp_guard', 'sec_drone'],
+    enemyRespawn: true,
+  },
+  corp_plaza: {
+    name: 'CORPORATE PLAZA',
+    cyber: true,
+    description: [
+      'A sterile open space surrounded by glass towers.',
+      'Security cameras track everything. The logo of ARACHE CORP',
+      'rotates slowly overhead in holographic blue.',
+      '',
+      'You do not belong here. They know it.',
+      '',
+      'WEST: Black Market.  SOUTH: The Sprawl.  NORTH: Server Tower.',
+    ],
+    exits: { west: 'black_market', south: 'the_sprawl', north: 'server_tower' },
+    items: ['keyfob'],
+    enemies: ['corp_guard', 'sec_drone'],
+    enemyRespawn: true,
+  },
+  undernet: {
+    name: 'THE UNDERNET',
+    cyber: true,
+    description: [
+      'Below the city grid, in uncharted data space.',
+      'Broken constructs drift past like debris in still water.',
+      'Something is watching from the dark of the deep stack.',
+      '',
+      'It feels ancient. Or just abandoned.',
+      '',
+      'WEST: The Sprawl.  NORTH: The Server Core.',
+    ],
+    exits: { west: 'the_sprawl', north: 'server_core' },
+    items: ['corrupted_log'],
+    enemies: ['ice_spider', 'rogue_ai'],
+    enemyRespawn: true,
+  },
+  grid_terminal: {
+    name: 'THE GRID TERMINAL',
+    cyber: true,
+    description: [
+      'A junction node in the network. Banks of monitors display',
+      'real-time data flows — financial transactions, surveillance',
+      'feeds, comm traffic. Someone is watching everything.',
+      '',
+      'You could learn a great deal here, if you had time.',
+      '',
+      'NORTH: Neon Alley.  EAST: The Undernet.',
+    ],
+    exits: { north: 'neon_alley', east: 'undernet' },
+    items: ['network_map'],
+    enemies: ['ice_spider'],
+    enemyRespawn: false,
+  },
+  server_tower: {
+    name: 'SERVER TOWER — LOBBY',
+    cyber: true,
+    description: [
+      'The ground floor of ARACHE CORP\'s data fortress.',
+      'Humming server racks line every wall floor to ceiling.',
+      'The temperature is sub-zero. Your breath fogs.',
+      '',
+      'SOUTH: Corporate Plaza.  UP: Server Core.',
+    ],
+    exits: { south: 'corp_plaza', up: 'server_core' },
+    items: ['access_card'],
+    enemies: ['corp_guard', 'sec_drone'],
+    enemyRespawn: true,
+  },
+  server_core: {
+    name: 'THE SERVER CORE',
+    cyber: true,
+    description: [
+      'You are at the heart of it. The room pulses with data.',
+      'The air crackles with barely contained processing power.',
+      '',
+      'At the center stands APEX-7. It turns to face you.',
+      '"I have been waiting," it says.',
+      '',
+      'There is no exit but through it.',
+      '',
+      'SOUTH: Server Tower.  DOWN: The Undernet.',
+    ],
+    exits: { south: 'server_tower', down: 'undernet' },
+    items: ['master_key'],
+    enemies: ['apex_hunter'],
+    enemyRespawn: false,
+    isBossRoom: true,
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// ITEMS
+// ═══════════════════════════════════════════════════════════════
+
+const items = {
+  // Original
+  note: { name: 'a folded note', description: 'The note reads: "Nothing here is permanent. Take what you need."', takeable: true },
+  blueprint: { name: 'a blueprint', description: 'Technical diagrams for something ambitious. Half the lines trail off into question marks.', takeable: true },
+  old_photo: { name: 'an old photograph', description: 'A blurry image of someone standing in front of a very early computer. You almost recognize them.', takeable: true },
+  journal: { name: 'a leather journal', description: 'The pages are filled with small, careful handwriting. Ideas, doubts, late-night observations. It feels private.', takeable: false },
+  // Gateway
+  access_terminal: { name: 'a pulsing terminal', description: 'A neural-link access terminal. A cable port glows faint cyan. This is a portal to another layer of reality. Type ACTIVATE to jack in.', takeable: false, activatable: true },
+  // Cyber loot/items
+  scrap_weapon: { name: 'a scrap pipe', description: 'Somebody\'s discarded weapon. Still has some heft to it.', takeable: true, weaponKey: 'rusty_pipe' },
+  stim_pack: { name: 'a stim pack', description: 'Military-grade stimulant. Restores 25 HP when used.', takeable: true, useable: true, effect: 'heal25' },
+  data_chip: { name: 'a data chip', description: 'Encrypted. You\'re not sure what\'s on it, but it has value.', takeable: true },
+  keyfob: { name: 'a Corp keyfob', description: 'An ARACHE CORP security fob. Might open something.', takeable: true },
+  corrupted_log: { name: 'a corrupted log', description: 'Fragmented text: "...the AI was never meant to stay contained...project APEX was a mistake...we lost the kill sw—" It ends there.', takeable: true },
+  network_map: { name: 'a network map', description: 'A partial schematic of the cyberspace grid. You can now navigate more clearly.', takeable: true },
+  access_card: { name: 'a server access card', description: 'Tier-3 clearance. Required for the upper levels of the tower.', takeable: true },
+  master_key: { name: 'a master decryption key', description: 'The administrative override for the entire ARACHE CORP network. This is what you came for.', takeable: true },
+};
+
+// Auto-generate item entries for all weapons so they can be dropped and picked up
+Object.entries(WEAPONS).forEach(([key, w]) => {
+  if (!items[key]) {
+    items[key] = {
+      name: w.name,
+      description: w.desc,
+      takeable: true,
+      weaponKey: key,
+    };
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// OUTPUT HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+const output = document.getElementById('output');
+const inputEl = document.getElementById('input');
+const locDisplay = document.getElementById('loc-display');
+const invDisplay = document.getElementById('inv-display');
+const hud = document.getElementById('hud');
+const hudRow = document.getElementById('hud-row');
+
+function print(text = '', cls = '') {
+  const line = document.createElement('div');
+  line.className = 'line' + (cls ? ' ' + cls : '');
+  line.textContent = text;
+  output.appendChild(line);
+  output.scrollTop = output.scrollHeight;
+}
+
+function printLines(lines, cls = '') { lines.forEach(l => print(l, cls)); }
+function gap() { print('', 'gap'); }
+function hr(char = '─', cls = 'dim') { print(char.repeat(46), cls); }
+
+// ═══════════════════════════════════════════════════════════════
+// HUD
+// ═══════════════════════════════════════════════════════════════
+
+function updateHUD() {
+  const ch = state.character;
+  if (!ch) return;
+
+  hud.classList.add('visible');
+
+  const hpClass = ch.hp < ch.maxHp * 0.3 ? 'hud-hp-low' : 'hud-val';
+  const weapon = ch.equippedWeapon ? WEAPONS[ch.equippedWeapon].name : 'fists';
+  const fx = ch.statusEffects.map(e => e.key).join(' ') || '—';
+
+  hudRow.innerHTML = `
+    <span class="hud-stat"><span class="hud-label">NAME </span><span class="hud-val">${ch.name}</span></span>
+    <span class="hud-stat"><span class="hud-label">LVL </span><span class="hud-val">${ch.level}</span></span>
+    <span class="hud-stat"><span class="hud-label">HP </span><span class="${hpClass}">${ch.hp}/${ch.maxHp}</span></span>
+    <span class="hud-stat"><span class="hud-label">XP </span><span class="hud-val">${ch.xp}/${ch.xpNext}</span></span>
+    <span class="hud-stat"><span class="hud-label">STR </span><span class="hud-val">${ch.stats.str}</span></span>
+    <span class="hud-stat"><span class="hud-label">AGI </span><span class="hud-val">${ch.stats.agi}</span></span>
+    <span class="hud-stat"><span class="hud-label">INT </span><span class="hud-val">${ch.stats.int}</span></span>
+    <span class="hud-stat"><span class="hud-label">END </span><span class="hud-val">${ch.stats.end}</span></span>
+    <span class="hud-stat"><span class="hud-label">WEAPON </span><span class="hud-val">${weapon}</span></span>
+    ${ch.statPoints > 0 ? `<span class="hud-stat hud-hp-low"><span class="hud-label">STAT POINTS </span><span class="hud-val">${ch.statPoints} AVAILABLE</span></span>` : ''}
+    ${ch.statusEffects.length ? `<span class="hud-stat hud-status-fx"><span class="hud-label">STATUS </span>${fx}</span>` : ''}
+  `;
+}
+
+function updateStatus() {
+  locDisplay.textContent = 'LOCATION: ' + (world[state.location]?.name || state.location.toUpperCase());
+  const ch = state.character;
+  invDisplay.textContent = state.inventory.length
+    ? 'CARRYING: ' + state.inventory.slice(0, 4).map(i => items[i]?.name || i).join(', ') + (state.inventory.length > 4 ? '...' : '')
+    : 'INVENTORY: EMPTY';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DICE
+// ═══════════════════════════════════════════════════════════════
+
+function roll(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function chance(p) { return Math.random() < p; }
+
+function buildHPBar(hp, maxHp, width = 20) {
+  const filled = Math.round((hp / maxHp) * width);
+  const empty = width - filled;
+  return '[' + '█'.repeat(Math.max(0, filled)) + '░'.repeat(Math.max(0, empty)) + ']';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CHARACTER CREATION FLOW
+// ═══════════════════════════════════════════════════════════════
+
+function startChargen() {
+  state.chargenStep = { step: 'name' };
+  gap();
+  hr('═');
+  print('NEURAL LINK ESTABLISHED', 'cyber-title');
+  hr('═');
+  gap();
+  print('Before you cross over, the system needs to build your identity.', 'chargen');
+  print('This data will persist as long as you are jacked in.', 'chargen');
+  gap();
+  print('STEP 1 OF 2: Enter your operator handle.', 'chargen');
+  print('(This is your name in cyberspace)', 'dim');
+  gap();
+}
+
+function handleChargen(input) {
+  const step = state.chargenStep;
+
+  if (step.step === 'name') {
+    const name = input.trim().slice(0, 20);
+    if (!name) { print('A name is required.', 'error'); return; }
+    step.pendingName = name;
+    step.step = 'class';
+    gap();
+    print(`Handle confirmed: ${name}`, 'success');
+    gap();
+    print('STEP 2 OF 2: Choose your operative class.', 'chargen');
+    gap();
+    Object.entries(CLASSES).forEach(([key, cls], i) => {
+      print(`  [${i+1}] ${cls.label}`, 'chargen-opt');
+      print(`       ${cls.desc}`, 'dim');
+      const b = cls.base;
+      print(`       STR:${b.str} AGI:${b.agi} INT:${b.int} END:${b.end}`, 'dim');
+      gap();
+    });
+    print('Type 1, 2, 3, or 4 to choose.', 'chargen');
+    return;
+  }
+
+  if (step.step === 'class') {
+    const n = parseInt(input.trim());
+    const keys = Object.keys(CLASSES);
+    if (!n || n < 1 || n > 4) { print('Enter 1, 2, 3, or 4.', 'error'); return; }
+    const clsKey = keys[n - 1];
+    const cls = CLASSES[clsKey];
+
+    state.character = createCharacter(step.pendingName, clsKey);
+    state.chargenStep = null;
+    state.flags.characterCreated = true;
+
+    gap();
+    hr('═');
+    print(`CLASS SELECTED: ${cls.label}`, 'cyber-title');
+    hr('═');
+    gap();
+    print(`Welcome, ${step.pendingName}. Identity matrix locked.`, 'success');
+    gap();
+    print('Your starting skills:', 'chargen');
+    state.character.skills.forEach(s => print(`  — ${s}`, 'dim'));
+    gap();
+    print('Jacking in now...', 'system');
+
+    setTimeout(() => {
+      enterCyberspace();
+    }, 1200);
+    return;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CYBERSPACE ENTRY
+// ═══════════════════════════════════════════════════════════════
+
+function enterCyberspace() {
+  state.location = 'neon_alley';
+  state.flags.enteredCyberspace = true;
+  updateStatus();
+  updateHUD();
+  gap();
+  hr('─');
+  print('// CYBERSPACE LAYER ACTIVE //', 'cyber-title');
+  hr('─');
+  commands.look();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COMBAT SYSTEM
+// ═══════════════════════════════════════════════════════════════
+
+function startCombat(enemyKey) {
+  const enemy = spawnEnemy(enemyKey);
+  state.combat = { enemy, turn: 0, fled: false };
+  gap();
+  hr('─', 'combat');
+  print(`⚔ COMBAT INITIATED — ${enemy.name.toUpperCase()}`, 'combat');
+  hr('─', 'combat');
+  print(enemy.desc, 'dim');
+  gap();
+  printCombatHP();
+  gap();
+  printSkills();
+  gap();
+}
+
+function printCombatHP() {
+  const c = state.combat;
+  const ch = state.character;
+  const chHpClass = ch.hp < ch.maxHp * 0.3 ? 'combat-enemy' : 'combat';
+  print(`YOU: ${ch.hp}/${ch.maxHp} HP   |   ${c.enemy.name}: ${c.enemy.hp}/${c.enemy.maxHp} HP`, chHpClass);
+}
+
+function printSkills() {
+  const ch = state.character;
+  print('Skills: ' + ch.skills.join('  '), 'dim');
+}
+
+function processCombatTurn(playerAction) {
+  if (!state.combat) return;
+  const c = state.combat;
+  const ch = state.character;
+  const enemy = c.enemy;
+
+  // Reset per-turn flags
+  ch._skipTurn = false;
+  enemy._skipTurn = false;
+  enemy._dmgMult = 1;
+  enemy._dmgReduction = 0;
+  enemy._missChance = 0;
+  enemy._evadeAll = false;
+  ch._dmgMult = 1;
+  ch._dmgReduction = 0;
+  ch._missChance = 0;
+  ch._evadeAll = false;
+
+  // Process player status effects
+  [...ch.statusEffects].forEach(fx => {
+    const def = STATUS[fx.key];
+    if (def) {
+      const msg = def.onTurn(ch);
+      print(msg, def.color);
+    }
+    fx.duration--;
+    if (fx.duration <= 0) {
+      ch.statusEffects = ch.statusEffects.filter(f => f.key !== fx.key);
+      print(`${fx.key} fades.`, 'dim');
+    }
+  });
+
+  // Process enemy status effects
+  [...enemy.statusEffects].forEach(fx => {
+    const def = STATUS[fx.key];
+    if (def) {
+      const msg = def.onTurn(enemy);
+      print(msg, def.color);
+    }
+    fx.duration--;
+    if (fx.duration <= 0) {
+      enemy.statusEffects = enemy.statusEffects.filter(f => f.key !== fx.key);
+    }
+  });
+
+  if (enemy.hp <= 0) { endCombat(true); return; }
+  if (ch.hp <= 0) { endCombat(false); return; }
+
+  // ── PLAYER TURN ────────────────────────────────────────────
+  gap();
+  if (ch._skipTurn) {
+    print('You are stunned and lose your turn.', 'combat-status');
+  } else {
+    resolvePlayerAction(playerAction);
+  }
+
+  if (enemy.hp <= 0) { endCombat(true); return; }
+  if (c.fled) return;
+
+  // ── ENEMY TURN ─────────────────────────────────────────────
+  if (!enemy._skipTurn) {
+    resolveEnemyTurn();
+  }
+
+  if (ch.hp <= 0) { endCombat(false); return; }
+
+  // Print HP and await next command
+  gap();
+  printCombatHP();
+  gap();
+  printSkills();
+  gap();
+}
+
+function resolvePlayerAction(action) {
+  const c = state.combat;
+  const ch = state.character;
+  const enemy = c.enemy;
+  const skills = ch.skills;
+  const verb = action.toUpperCase();
+
+  if (!skills.includes(verb)) {
+    print(`You don't know how to ${verb}. Available: ${skills.join(', ')}`, 'error');
+    // don't advance turn — let them try again
+    state.combat._awaitInput = true;
+    printCombatHP();
+    gap();
+    printSkills();
+    return;
+  }
+
+  const weapon = ch.equippedWeapon ? WEAPONS[ch.equippedWeapon] : null;
+
+  switch (verb) {
+    case 'ATTACK': {
+      let dmg = weapon ? roll(weapon.dmgMin, weapon.dmgMax) : roll(2, 5 + ch.stats.str);
+      if (weapon) {
+        const statBonus = Math.floor(ch.stats[weapon.stat] * 0.5);
+        dmg += statBonus;
+      }
+      if (enemy._dmgMult !== 1) dmg = Math.floor(dmg * enemy._dmgMult);
+      if (enemy._dmgReduction) dmg = Math.max(1, dmg - enemy._dmgReduction);
+      if (chance(enemy._missChance)) { print('Your attack misses!', 'dim'); break; }
+      enemy.hp -= dmg;
+      print(`You strike ${enemy.name} for ${dmg} damage.`, 'combat');
+      // Weapon status effect
+      if (weapon?.statusInflict && chance(0.35)) {
+        inflictStatus(enemy, weapon.statusInflict);
+      }
+      break;
+    }
+    case 'DODGE': {
+      print('You brace, ready to dodge the next strike.', 'combat');
+      inflictStatus(ch, 'VANISHED');
+      break;
+    }
+    case 'HACK': {
+      const power = ch.stats.int * 2 + roll(1, 6);
+      const dmg = Math.floor(power * 0.6);
+      enemy.hp -= dmg;
+      print(`You breach ${enemy.name}'s systems for ${dmg} damage.`, 'combat');
+      if (chance(0.5)) inflictStatus(enemy, 'HACKED');
+      break;
+    }
+    case 'CRUSH': {
+      const dmg = roll(8, 14) + Math.floor(ch.stats.str * 0.8);
+      enemy.hp -= dmg;
+      print(`You crush ${enemy.name} with brute force — ${dmg} damage!`, 'combat');
+      if (chance(0.4)) inflictStatus(enemy, 'STUNNED');
+      break;
+    }
+    case 'VANISH': {
+      print('You dissolve into the shadows.', 'combat-status');
+      inflictStatus(ch, 'VANISHED');
+      break;
+    }
+    case 'OVERLOAD': {
+      const dmg = roll(12, 22) + ch.stats.int;
+      enemy.hp -= dmg;
+      print(`SYSTEM OVERLOAD — ${enemy.name} takes ${dmg} damage and goes haywire!`, 'combat');
+      inflictStatus(enemy, 'STUNNED');
+      inflictStatus(enemy, 'HACKED');
+      break;
+    }
+    case 'FORTIFY': {
+      print('You steel your body against damage.', 'combat-heal');
+      inflictStatus(ch, 'FORTIFIED');
+      const heal = Math.floor(ch.stats.end * 1.5);
+      ch.hp = Math.min(ch.maxHp, ch.hp + heal);
+      print(`You recover ${heal} HP.`, 'combat-heal');
+      break;
+    }
+    case 'SCAN': {
+      print(`[SCAN RESULTS — ${enemy.name}]`, 'combat');
+      print(`HP: ${enemy.hp}/${enemy.maxHp}  |  ATK: ${enemy.atk[0]}-${enemy.atk[1]}`, 'dim');
+      print(`Status: ${enemy.statusEffects.map(e=>e.key).join(', ') || 'none'}`, 'dim');
+      print(`Weakness: ${enemy.behavior === 'hacker' ? 'HIGH — vulnerable to INT attacks' : 'STANDARD'}`, 'dim');
+      // Scan doesn't consume turn damage-wise, but enemy still retaliates
+      break;
+    }
+    case 'BACKSTAB': {
+      if (ch.statusEffects.find(e => e.key === 'VANISHED')) {
+        const dmg = roll(10, 18) + ch.stats.agi * 2;
+        enemy.hp -= dmg;
+        print(`You emerge from darkness — BACKSTAB for ${dmg} damage!`, 'combat');
+        ch.statusEffects = ch.statusEffects.filter(e => e.key !== 'VANISHED');
+      } else {
+        print('Backstab requires you to be VANISHED first.', 'error');
+      }
+      break;
+    }
+    case 'CLEAVE': {
+      const dmg = roll(6, 12) + ch.stats.str;
+      enemy.hp -= dmg;
+      print(`Cleave — ${dmg} damage! The blow staggers ${enemy.name}.`, 'combat');
+      if (chance(0.5)) inflictStatus(enemy, 'SLOWED');
+      break;
+    }
+    case 'RUN': {
+      const escapeChance = 0.3 + ch.stats.agi * 0.05;
+      if (chance(escapeChance)) {
+        print('You manage to disengage and flee!', 'success');
+        state.combat.fled = true;
+        state.combat = null;
+        commands.look();
+      } else {
+        print('You try to run but cannot escape!', 'error');
+      }
+      break;
+    }
+  }
+}
+
+function resolveEnemyTurn() {
+  const c = state.combat;
+  const ch = state.character;
+  const enemy = c.enemy;
+
+  if (ch._evadeAll) {
+    print(`${enemy.name} strikes — but you are hidden. Attack misses!`, 'combat');
+    ch._evadeAll = false;
+    return;
+  }
+
+  let dmg = roll(enemy.atk[0], enemy.atk[1]);
+  if (ch._dmgMult !== 1) dmg = Math.floor(dmg * ch._dmgMult);
+  if (ch._dmgReduction) dmg = Math.max(1, dmg - ch._dmgReduction);
+  if (chance(ch._missChance)) { print(`${enemy.name} attacks but misses you.`, 'dim'); return; }
+
+  ch.hp -= dmg;
+  print(`${enemy.name} attacks for ${dmg} damage.`, 'combat-enemy');
+  updateHUD();
+
+  // Enemy status inflict
+  if (chance(enemy.statusChance)) {
+    inflictStatus(ch, enemy.statusInflict);
+  }
+
+  // Special boss behavior
+  if (enemy.behavior === 'boss' && chance(0.3)) {
+    const extra = roll(5, 10);
+    ch.hp -= extra;
+    print(`${enemy.name} fires a secondary weapon for ${extra} additional damage!`, 'combat-enemy');
+    updateHUD();
+  }
+}
+
+function inflictStatus(target, key) {
+  if (!STATUS[key]) return;
+  const existing = target.statusEffects.find(e => e.key === key);
+  if (existing) { existing.duration = STATUS[key].duration; return; }
+  target.statusEffects.push({ key, duration: STATUS[key].duration });
+  const label = target === state.character ? 'You are' : `${target.name} is`;
+  print(`${label} now ${key}!`, 'combat-status');
+}
+
+function endCombat(playerWon) {
+  const c = state.combat;
+  const ch = state.character;
+
+  gap();
+  if (playerWon) {
+    const enemy = c.enemy;
+    hr('─', 'success');
+    print(`${enemy.name} DEFEATED.`, 'levelup');
+    hr('─', 'success');
+    ch.kills++;
+    grantXP(enemy.xp);
+    if (enemy.loot) {
+      const room = world[state.location];
+      if (!room.items.includes(enemy.loot) && !state.inventory.includes(enemy.loot)) {
+        room.items.push(enemy.loot);
+        print(`${enemy.name} drops: ${WEAPONS[enemy.loot]?.name || enemy.loot}`, 'loot');
+      }
+    }
+  } else {
+    hr('─', 'error');
+    print('YOU HAVE BEEN DEFEATED.', 'error');
+    hr('─', 'error');
+    print('Resetting to last checkpoint...', 'system');
+    ch.hp = Math.floor(ch.maxHp * 0.5);
+    ch.statusEffects = [];
+    state.location = 'neon_alley';
+    updateStatus();
+    updateHUD();
+    setTimeout(() => { gap(); commands.look(); }, 800);
+  }
+
+  // Remove enemy from room if no respawn
+  const room = world[state.location];
+  if (playerWon && room && !room.enemyRespawn) {
+    room.enemies = room.enemies.filter(e => e !== c.enemy.defKey);
+  }
+
+  state.combat = null;
+  updateHUD();
+  gap();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COMMANDS
+// ═══════════════════════════════════════════════════════════════
+
+const commands = {
+  look() {
+    const loc = world[state.location];
+    if (!loc) return;
+    gap();
+    print('[ ' + loc.name + ' ]', loc.cyber ? 'cyber-title' : 'title-text');
+    gap();
+    printLines(loc.description, loc.cyber ? '' : '');
+    const here = (loc.items || []).filter(i => !state.inventory.includes(i));
+    if (here.length) {
+      gap();
+      print('You can see: ' + here.map(i => items[i]?.name || i).join(', ') + '.', 'dim');
+    }
+    if (loc.enemies && loc.enemies.length) {
+      gap();
+      print('Enemies here: ' + loc.enemies.map(e => ENEMY_DEFS[e]?.name || e).join(', ') + '.', 'combat-enemy');
+    }
+    gap();
+  },
+
+  go(dir) {
+    if (!dir) { print('Go where? Try: GO NORTH, GO SOUTH, etc.', 'error'); return; }
+    const loc = world[state.location];
+    const dest = loc?.exits?.[dir.toLowerCase()];
+    if (!dest) { print("You can't go that way.", 'error'); return; }
+
+    // Random encounter on move through cyber rooms
+    const destRoom = world[dest];
+    if (destRoom?.cyber && destRoom?.enemies?.length && state.character) {
+      if (chance(0.5)) {
+        const enemyKey = destRoom.enemies[Math.floor(Math.random() * destRoom.enemies.length)];
+        state.location = dest;
+        state.moves++;
+        updateStatus();
+        gap();
+        print('As you enter ' + destRoom.name + ' — you are ambushed!', 'combat-enemy');
+        startCombat(enemyKey);
+        return;
+      }
+    }
+
+    state.location = dest;
+    state.moves++;
+    updateStatus();
+    commands.look();
+  },
+
+  take(itemName) {
+    if (!itemName) { print('Take what?', 'error'); return; }
+    const loc = world[state.location];
+    const match = (loc?.items || []).find(id =>
+      items[id]?.name.toLowerCase().includes(itemName.toLowerCase()) && !state.inventory.includes(id)
+    );
+    if (!match) { print("You don't see that here.", 'error'); return; }
+    if (!items[match].takeable) { print("You decide to leave that where it is.", 'dim'); return; }
+    state.inventory.push(match);
+    print('You take ' + items[match].name + '.', 'success');
+    // Auto-equip weapons
+    if (items[match].weaponKey) {
+      const w = WEAPONS[items[match].weaponKey];
+      const ch = state.character;
+      if (ch && ch.stats[w.stat] >= w.req) {
+        ch.equippedWeapon = items[match].weaponKey;
+        print(`You equip the ${w.name}.`, 'success');
+        updateHUD();
+      } else if (ch) {
+        print(`(Requires ${w.stat.toUpperCase()} ${w.req} to equip.)`, 'dim');
+      }
+    }
+    updateStatus();
+  },
+
+  takeAll() {
+    const loc = world[state.location];
+    const available = (loc?.items || []).filter(id =>
+      !state.inventory.includes(id) && items[id]?.takeable
+    );
+    const skipped = (loc?.items || []).filter(id =>
+      !state.inventory.includes(id) && items[id] && !items[id].takeable
+    );
+    if (!available.length && !skipped.length) {
+      print('There is nothing here to take.', 'dim');
+      return;
+    }
+    available.forEach(id => {
+      state.inventory.push(id);
+      print('You take ' + items[id].name + '.', 'success');
+      if (items[id].weaponKey) {
+        const w = WEAPONS[items[id].weaponKey];
+        const ch = state.character;
+        if (ch && ch.stats[w.stat] >= w.req) {
+          ch.equippedWeapon = items[id].weaponKey;
+          print(`You equip the ${w.name}.`, 'success');
+          updateHUD();
+        } else if (ch) {
+          print(`(Requires ${w.stat.toUpperCase()} ${w.req} to equip.)`, 'dim');
+        }
+      }
+    });
+    skipped.forEach(id => print(`You leave ${items[id].name} where it is.`, 'dim'));
+    if (available.length) updateStatus();
+  },
+
+  examine(itemName) {
+    if (!itemName) { print('Examine what?', 'error'); return; }
+    const all = [...(world[state.location]?.items || []), ...state.inventory];
+    const match = all.find(id =>
+      items[id]?.name.toLowerCase().includes(itemName.toLowerCase())
+    );
+    if (!match) { print("You don't see that here.", 'error'); return; }
+    gap();
+    print(items[match].description);
+    gap();
+  },
+
+  activate(itemName) {
+    if (!itemName) { print('Activate what?', 'error'); return; }
+    const loc = world[state.location];
+    const match = (loc?.items || []).find(id =>
+      items[id]?.name.toLowerCase().includes(itemName.toLowerCase())
+    );
+    if (!match) { print("You don't see that here.", 'error'); return; }
+    if (!items[match].activatable) { print("You can't activate that.", 'error'); return; }
+    if (match === 'access_terminal') {
+      if (state.flags.characterCreated) {
+        enterCyberspace();
+      } else {
+        startChargen();
+      }
+    }
+  },
+
+  use(itemName) {
+    if (!itemName) { print('Use what?', 'error'); return; }
+    const match = state.inventory.find(id =>
+      items[id]?.name.toLowerCase().includes(itemName.toLowerCase())
+    );
+    if (!match) { print("You aren't carrying that.", 'error'); return; }
+    const item = items[match];
+    if (!item.useable) { print("You can't use that.", 'error'); return; }
+    if (item.effect === 'heal25') {
+      const ch = state.character;
+      if (!ch) { print("You feel fine.", 'dim'); return; }
+      const healed = Math.min(25, ch.maxHp - ch.hp);
+      ch.hp = Math.min(ch.maxHp, ch.hp + 25);
+      state.inventory = state.inventory.filter(i => i !== match);
+      print(`You use ${item.name}. Restored ${healed} HP.`, 'combat-heal');
+      updateHUD();
+      updateStatus();
+    }
+  },
+
+  equip(weaponName) {
+    if (!weaponName) { print('Equip what?', 'error'); return; }
+    const ch = state.character;
+    if (!ch) { print("No character active.", 'error'); return; }
+    const match = state.inventory.find(id => items[id]?.weaponKey &&
+      WEAPONS[items[id].weaponKey]?.name.toLowerCase().includes(weaponName.toLowerCase())
+    );
+    if (!match) { print("You aren't carrying that weapon.", 'error'); return; }
+    const w = WEAPONS[items[match].weaponKey];
+    if (ch.stats[w.stat] < w.req) {
+      print(`You need ${w.stat.toUpperCase()} ${w.req} to equip ${w.name}.`, 'error');
+      return;
+    }
+    ch.equippedWeapon = items[match].weaponKey;
+    print(`You equip the ${w.name}.`, 'success');
+    updateHUD();
+  },
+
+  inventory() {
+    if (!state.inventory.length) { print("You aren't carrying anything.", 'dim'); return; }
+    gap();
+    print('You are carrying:');
+    state.inventory.forEach(id => {
+      const item = items[id];
+      const weaponNote = item?.weaponKey ? ` [${WEAPONS[item.weaponKey].dmgMin}-${WEAPONS[item.weaponKey].dmgMax} dmg]` : '';
+      print('  — ' + (item?.name || id) + weaponNote, 'dim');
+    });
+    gap();
+  },
+
+  stats() {
+    const ch = state.character;
+    if (!ch) { print("No character active. Find the gateway terminal.", 'dim'); return; }
+    gap();
+    print(`[ ${ch.name} — ${CLASSES[ch.cls].label} ]`, 'cyber-title');
+    gap();
+    print(`Level: ${ch.level}  |  XP: ${ch.xp} / ${ch.xpNext}  |  Kills: ${ch.kills}`);
+    print(`HP: ${ch.hp} / ${ch.maxHp}`);
+    gap();
+    print(`STR: ${ch.stats.str}   AGI: ${ch.stats.agi}   INT: ${ch.stats.int}   END: ${ch.stats.end}`);
+    if (ch.statPoints > 0) print(`STAT POINTS AVAILABLE: ${ch.statPoints}  — type ALLOCATE [stat] to spend`, 'levelup');
+    gap();
+    print(`Skills: ${ch.skills.join(', ')}`);
+    gap();
+    if (ch.equippedWeapon) {
+      const w = WEAPONS[ch.equippedWeapon];
+      print(`Equipped: ${w.name} (${w.dmgMin}-${w.dmgMax} dmg, ${w.stat.toUpperCase()}-based)`, 'dim');
+    }
+    gap();
+  },
+
+  hp() {
+    const ch = state.character;
+    if (!ch) { print("No character active.", 'dim'); return; }
+    gap();
+    const hpClass = ch.hp < ch.maxHp * 0.3 ? 'error' : ch.hp < ch.maxHp * 0.6 ? 'loot' : 'success';
+    const bar = buildHPBar(ch.hp, ch.maxHp);
+    print(`HP  ${bar}  ${ch.hp} / ${ch.maxHp}`, hpClass);
+    if (ch.statusEffects.length) {
+      gap();
+      print('Active status effects:', 'dim');
+      ch.statusEffects.forEach(fx => {
+        print(`  — ${fx.key}  (${fx.duration} turn${fx.duration !== 1 ? 's' : ''} remaining)`, 'combat-status');
+      });
+    } else {
+      print('No active status effects.', 'dim');
+    }
+    gap();
+  },
+
+  allocate(stat) {
+    const ch = state.character;
+    if (!ch) { print("No character.", 'error'); return; }
+    if (!ch.statPoints) { print("No stat points available.", 'error'); return; }
+    const key = stat?.toLowerCase();
+    if (!['str','agi','int','end'].includes(key)) {
+      print("Allocate to: STR, AGI, INT, or END", 'error'); return;
+    }
+    ch.stats[key]++;
+    ch.statPoints--;
+    if (key === 'end') {
+      ch.maxHp += 5;
+      ch.hp += 5;
+    }
+    print(`${key.toUpperCase()} increased to ${ch.stats[key]}.`, 'success');
+    print(`New skills: ${ch.skills.join(', ')}`, 'dim');
+    updateHUD();
+  },
+
+  fight(enemyName) {
+    const loc = world[state.location];
+    if (!loc?.enemies?.length) { print("There is nothing to fight here.", 'dim'); return; }
+    if (!state.character) { print("You have no character. Find the gateway first.", 'error'); return; }
+    let enemyKey;
+    if (enemyName) {
+      enemyKey = loc.enemies.find(e => ENEMY_DEFS[e]?.name.toLowerCase().includes(enemyName.toLowerCase()));
+    } else {
+      enemyKey = loc.enemies[0];
+    }
+    if (!enemyKey) { print("No such enemy here.", 'error'); return; }
+    startCombat(enemyKey);
+  },
+
+  help() {
+    const inCyber = world[state.location]?.cyber;
+    gap();
+    print('AVAILABLE COMMANDS', 'title-text');
+    gap();
+    const base = [
+      ['LOOK / L', 'describe surroundings'],
+      ['GO [dir]', 'move (NORTH, SOUTH, EAST, WEST, UP, DOWN)'],
+      ['TAKE [item]', 'pick up an item'],
+      ['EXAMINE [item] / X', 'look closely at something'],
+      ['ACTIVATE [item]', 'interact with an object'],
+      ['USE [item]', 'use a consumable'],
+      ['EQUIP [weapon]', 'equip a weapon from inventory'],
+      ['INVENTORY / I', 'list carried items'],
+      ['STATS', 'view character stats and skills'],
+      ['ALLOCATE [stat]', 'spend level-up stat points'],
+      ['HELP', 'this message'],
+      ['CLEAR', 'clear the screen'],
+    ];
+    if (inCyber) {
+      base.push(['FIGHT [enemy]', 'engage an enemy in combat']);
+      base.push(['ATTACK / HACK / DODGE', 'combat actions']);
+      base.push(['VANISH / CRUSH / OVERLOAD', 'advanced combat skills']);
+    }
+    base.forEach(([cmd, desc]) => print('  ' + cmd.padEnd(22) + desc, 'dim'));
+    gap();
+  },
+
+  clear() { output.innerHTML = ''; },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// PARSER
+// ═══════════════════════════════════════════════════════════════
+
+function parse(raw) {
+  const trimmed = raw.trim();
+  if (!trimmed) return;
+
+  // Character creation intercept
+  if (state.chargenStep) {
+    handleChargen(trimmed);
+    return;
+  }
+
+  // Combat intercept
+  if (state.combat) {
+    const verb = trimmed.toUpperCase().split(' ')[0];
+    const combatSkills = ['ATTACK','DODGE','HACK','CRUSH','VANISH','OVERLOAD','FORTIFY',
+                          'SCAN','BACKSTAB','CLEAVE','RUN'];
+    if (combatSkills.includes(verb)) {
+      processCombatTurn(verb);
+      return;
+    }
+    if (verb === 'STATS') { commands.stats(); return; }
+    if (verb === 'USE') { commands.use(trimmed.slice(4).trim()); return; }
+    print('You are in combat! Available actions: ' + state.character.skills.join(', '), 'error');
+    return;
+  }
+
+  const parts = trimmed.toLowerCase().split(/\s+/);
+  const verb = parts[0];
+  const rest = parts.slice(1).join(' ');
+
+  const aliases = {
+    n: () => commands.go('north'),
+    s: () => commands.go('south'),
+    e: () => commands.go('east'),
+    w: () => commands.go('west'),
+    u: () => commands.go('up'),
+    d: () => commands.go('down'),
+    north: () => commands.go('north'),
+    south: () => commands.go('south'),
+    east: () => commands.go('east'),
+    west: () => commands.go('west'),
+    up: () => commands.go('up'),
+    down: () => commands.go('down'),
+    l: () => commands.look(),
+    look: () => commands.look(),
+    go: () => commands.go(rest),
+    take: () => commands.take(rest),
+    get: () => commands.take(rest),
+    pick: () => commands.take(rest),
+    'take all': () => commands.takeAll(),
+    'get all': () => commands.takeAll(),
+    'grab all': () => commands.takeAll(),
+    takeall: () => commands.takeAll(),
+    getall: () => commands.takeAll(),
+    examine: () => commands.examine(rest),
+    x: () => commands.examine(rest),
+    read: () => commands.examine(rest),
+    inspect: () => commands.examine(rest),
+    activate: () => commands.activate(rest),
+    use: () => commands.use(rest),
+    equip: () => commands.equip(rest),
+    i: () => commands.inventory(),
+    inventory: () => commands.inventory(),
+    inv: () => commands.inventory(),
+    stats: () => commands.stats(),
+    stat: () => commands.stats(),
+    hp: () => commands.hp(),
+    health: () => commands.hp(),
+    allocate: () => commands.allocate(rest),
+    alloc: () => commands.allocate(rest),
+    fight: () => commands.fight(rest),
+    attack: () => commands.fight(rest),
+    kill: () => commands.fight(rest),
+    help: () => commands.help(),
+    '?': () => commands.help(),
+    clear: () => commands.clear(),
+    cls: () => commands.clear(),
+  };
+
+  if (aliases[verb]) {
+    aliases[verb]();
+  } else if (verb) {
+    print("Command not recognized. Type HELP for commands.", 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INPUT
+// ═══════════════════════════════════════════════════════════════
+
+const history = [];
+let historyIdx = -1;
+
+const inputMirror = document.getElementById('input-mirror');
+
+function syncInputWidth() {
+  inputMirror.textContent = inputEl.value || '';
+  const w = Math.max(2, inputMirror.offsetWidth);
+  inputEl.style.width = w + 'px';
+}
+
+inputEl.addEventListener('input', syncInputWidth);
+inputEl.addEventListener('keyup', syncInputWidth);
+syncInputWidth();
+
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const val = inputEl.value.trim();
+    if (!val) return;
+    history.unshift(val);
+    historyIdx = -1;
+    print(val, 'input-echo');
+    inputEl.value = '';
+    syncInputWidth();
+    parse(val);
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (historyIdx < history.length - 1) {
+      historyIdx++;
+      inputEl.value = history[historyIdx];
+      syncInputWidth();
+    }
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (historyIdx > 0) { historyIdx--; inputEl.value = history[historyIdx]; }
+    else { historyIdx = -1; inputEl.value = ''; }
+    syncInputWidth();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════════
+
+function boot() {
+  const lines = [
+    { text: 'INITIALIZING...', cls: 'system', delay: 300 },
+    { text: 'LOADING WORLD DATA...', cls: 'system', delay: 600 },
+    { text: 'RENDERING ENVIRONMENT...', cls: 'system', delay: 900 },
+    { text: '', delay: 1100 },
+    { text: '══════════════════════════════════════════', cls: 'dim', delay: 1200 },
+    { text: '', delay: 1250 },
+    { text: 'WELCOME', cls: 'title-text', delay: 1400 },
+    { text: '', delay: 1450 },
+    { text: 'You have entered a place that is part website,', delay: 1600 },
+    { text: 'part world. Explore freely. Type carefully.', delay: 1700 },
+    { text: '', delay: 1800 },
+    { text: '══════════════════════════════════════════', cls: 'dim', delay: 1900 },
+  ];
+  lines.forEach(({ text, cls, delay }) => setTimeout(() => print(text, cls || ''), delay));
+  setTimeout(() => {
+    commands.look();
+    updateStatus();
+    inputEl.focus();
+  }, 2200);
+}
+
+boot();
+</script>
+</body>
+</html>
