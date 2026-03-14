@@ -8,6 +8,29 @@ function parse(raw) {
   const trimmed = raw.trim();
   if (!trimmed) return;
 
+  // Boot choice intercept (continue save vs new game)
+  if (state.bootChoice) {
+    const verb = trimmed.toUpperCase();
+    if (verb === 'CONTINUE') {
+      state.bootChoice = false;
+      const data = JSON.parse(localStorage.getItem(SAVE_KEY));
+      applyLoadedSave(data);
+      updateHUD();
+      updateStatus();
+      gap();
+      print('Save loaded. Welcome back.', 'success');
+      gap();
+      commands.look();
+    } else if (verb === 'NEW') {
+      state.bootChoice = false;
+      localStorage.removeItem(SAVE_KEY);
+      commands.look();
+    } else {
+      print('Type CONTINUE to load your save, or NEW to start fresh.', 'chargen');
+    }
+    return;
+  }
+
   // Character creation intercept
   if (state.chargenStep) { handleChargen(trimmed); return; }
 
@@ -16,10 +39,10 @@ function parse(raw) {
     const verb = trimmed.toUpperCase().split(' ')[0];
     const combatSkills = ['ATTACK','DODGE','HACK','CRUSH','VANISH','OVERLOAD',
                           'FORTIFY','SCAN','BACKSTAB','CLEAVE','RUN'];
-    if (combatSkills.includes(verb)) { processCombatTurn(verb); return; }
+    if (combatSkills.includes(verb)) { processCombatTurn(verb); saveGame(); return; }
     if (verb === 'STATS') { commands.stats(); return; }
     if (verb === 'HP' || verb === 'HEALTH') { commands.hp(); return; }
-    if (verb === 'USE')   { commands.use(trimmed.slice(4).trim()); return; }
+    if (verb === 'USE')   { commands.use(trimmed.slice(4).trim()); saveGame(); return; }
     print('You are in combat! Available actions: ' + state.character.skills.join(', '), 'error');
     return;
   }
@@ -78,6 +101,8 @@ function parse(raw) {
     '?':   () => commands.help(),
     clear: () => commands.clear(),
     cls:   () => commands.clear(),
+    save:  () => commands.save(),
+    load:  () => commands.load(),
   };
 
   if (aliases[verb]) {
@@ -85,6 +110,9 @@ function parse(raw) {
   } else if (verb) {
     print('Command not recognized. Type HELP for commands.', 'error');
   }
+
+  // Autosave after every command (no-op if character not yet created)
+  saveGame();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -158,7 +186,19 @@ function boot() {
   ];
   lines.forEach(({ text, cls, delay }) => setTimeout(() => print(text, cls || ''), delay));
   setTimeout(() => {
-    commands.look();
+    if (hasSaveData()) {
+      const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
+      gap();
+      print('── SAVE DATA DETECTED ──', 'system');
+      if (saved.character) {
+        print(`  ${saved.character.name}  ·  ${CLASSES[saved.character.cls].label}  ·  Level ${saved.character.level}`, 'dim');
+      }
+      gap();
+      print('Type CONTINUE to resume, or NEW to start fresh.', 'chargen');
+      state.bootChoice = true;
+    } else {
+      commands.look();
+    }
     updateStatus();
     inputEl.focus();
   }, 2200);

@@ -16,6 +16,7 @@ const state = {
   character: null,
   combat: null,
   chargenStep: null,
+  bootChoice: false,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -76,6 +77,63 @@ function updateHUD() {
     ${ch.statPoints > 0 ? `<span class="hud-stat hud-hp-low"><span class="hud-label">STAT POINTS </span><span class="hud-val">${ch.statPoints} AVAILABLE</span></span>` : ''}
     ${ch.statusEffects.length ? `<span class="hud-stat hud-status-fx"><span class="hud-label">STATUS </span>${fx}</span>` : ''}
   `;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SAVE / LOAD
+// ═══════════════════════════════════════════════════════════════
+
+const SAVE_KEY = 'terminalMudSave';
+
+function saveGame() {
+  if (!state.flags.characterCreated) return;
+  const ch = state.character;
+  const data = {
+    location: state.location,
+    inventory: state.inventory,
+    flags: { ...state.flags },
+    moves: state.moves,
+    character: ch ? {
+      name:           ch.name,
+      cls:            ch.cls,
+      level:          ch.level,
+      xp:             ch.xp,
+      xpNext:         ch.xpNext,
+      statPoints:     ch.statPoints,
+      cyberPoints:    ch.cyberPoints,
+      cyberware:      [...ch.cyberware],
+      hp:             ch.hp,
+      maxHp:          ch.maxHp,
+      stats:          { ...ch.stats },
+      statusEffects:  [],
+      equippedWeapon: ch.equippedWeapon,
+      kills:          ch.kills,
+    } : null,
+  };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+}
+
+function hasSaveData() {
+  return !!localStorage.getItem(SAVE_KEY);
+}
+
+function applyLoadedSave(data) {
+  state.location    = data.location;
+  state.inventory   = data.inventory;
+  state.flags       = data.flags;
+  state.moves       = data.moves;
+  state.combat      = null;
+  state.chargenStep = null;
+  if (data.character) {
+    const ch = data.character;
+    // Re-attach the skills getter lost during JSON serialization
+    Object.defineProperty(ch, 'skills', {
+      get()        { return getSkills(this.stats, this.cls); },
+      configurable: true,
+      enumerable:   false,
+    });
+    state.character = ch;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════

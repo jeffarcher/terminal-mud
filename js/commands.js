@@ -239,6 +239,8 @@ const commands = {
       ['STATS',             'view character stats and skills'],
       ['ALLOCATE [stat]',   'spend level-up stat points'],
       ['CYBERWARE',         'view installed implants'],
+      ['SAVE',              'save game to browser storage'],
+      ['LOAD',              'load most recent save'],
       ['HELP',              'this message'],
       ['CLEAR',             'clear the screen'],
     ];
@@ -269,6 +271,24 @@ const commands = {
         gap();
       });
     }
+  },
+
+  save() {
+    if (!state.flags.characterCreated) { print('Nothing to save yet.', 'dim'); return; }
+    saveGame();
+    print('Game saved.', 'success');
+  },
+
+  load() {
+    if (!hasSaveData()) { print('No save data found.', 'error'); return; }
+    const data = JSON.parse(localStorage.getItem(SAVE_KEY));
+    applyLoadedSave(data);
+    updateHUD();
+    updateStatus();
+    gap();
+    print('Save loaded.', 'success');
+    gap();
+    commands.look();
   },
 
   clear() { output.innerHTML = ''; },
